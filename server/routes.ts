@@ -278,60 +278,159 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // WebSocket server for real-time features
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
-
+  
+  // Track session participants
+  const sessionParticipants = new Map<string, Set<any>>();
+  
   wss.on('connection', (ws) => {
     console.log('WebSocket client connected');
-
+    let currentSession: string | null = null;
+    let userId: string | null = null;
+    
     ws.on('message', (message) => {
       try {
         const data = JSON.parse(message.toString());
         
-        // Handle different message types
         switch (data.type) {
           case 'join_session':
-            // Handle joining live session
-            ws.send(JSON.stringify({
-              type: 'session_joined',
-              sessionId: data.sessionId
-            }));
+            currentSession = data.sessionId;
+            userId = data.userId;
+            
+            if (currentSession && userId) {
+              // Add participant to session
+              if (!sessionParticipants.has(currentSession)) {
+                sessionParticipants.set(currentSession, new Set());
+              }
+              const participants = sessionParticipants.get(currentSession);
+              if (participants) {
+                participants.add({
+                  userId,
+                  username: data.username,
+                  ws
+                });
+                
+                // Broadcast participant joined
+                broadcastToSession(currentSession, {
+                  type: 'participant_joined',
+                  userId,
+                  username: data.username,
+                  participantCount: participants.size
+                });
+              }
+            }
+            
+            console.log(`User ${data.username} joined session ${currentSession}`);
+            break;
+            
+          case 'leave_session':
+            if (currentSession && sessionParticipants.has(currentSession)) {
+              const participants = sessionParticipants.get(currentSession);
+              if (participants) {
+                participants.forEach((participant: any) => {
+                  if (participant.userId === userId) {
+                    participants.delete(participant);
+                  }
+                });
+                
+                // Broadcast participant left
+                broadcastToSession(currentSession, {
+                  type: 'participant_left',
+                  userId,
+                  participantCount: participants.size
+                });
+              }
+            }
             break;
             
           case 'chat_message':
-            // Broadcast chat message to all clients in the session
-            wss.clients.forEach((client) => {
-              if (client.readyState === 1) { // WebSocket.OPEN
-                client.send(JSON.stringify({
-                  type: 'chat_message',
-                  message: data.message,
-                  author: data.author,
-                  timestamp: new Date().toISOString()
-                }));
-              }
-            });
+            // Broadcast chat message to session participants
+            if (currentSession) {
+              broadcastToSession(currentSession, {
+                type: 'chat_message',
+                id: data.id,
+                author: data.author,
+                message: data.message,
+                timestamp: data.timestamp
+              });
+            }
             break;
             
           case 'raise_hand':
-            // Handle raise hand functionality
-            wss.clients.forEach((client) => {
-              if (client.readyState === 1) {
-                client.send(JSON.stringify({
-                  type: 'hand_raised',
-                  userId: data.userId,
-                  username: data.username
-                }));
-              }
-            });
+            // Broadcast hand raise status
+            if (currentSession) {
+              broadcastToSession(currentSession, {
+                type: 'hand_raised',
+                userId: data.userId,
+                username: data.username,
+                handRaised: data.handRaised
+              });
+            }
             break;
+            
+          case 'media_state_change':
+            // Broadcast media state changes (mute/unmute, video on/off)
+            if (currentSession) {
+              broadcastToSession(currentSession, {
+                type: 'participant_media_change',
+                userId: data.userId,
+                mediaType: data.mediaType, // 'audio' or 'video'
+                enabled: data.enabled
+              });
+            }
+            break;
+            
+          default:
+            // Broadcast other messages to session
+            if (currentSession) {
+              broadcastToSession(currentSession, data);
+            }
         }
       } catch (error) {
         console.error('WebSocket message error:', error);
       }
     });
-
+    
     ws.on('close', () => {
       console.log('WebSocket client disconnected');
+      
+      // Clean up participant from session
+      if (currentSession && sessionParticipants.has(currentSession)) {
+        const participants = sessionParticipants.get(currentSession);
+        if (participants) {
+          participants.forEach((participant: any) => {
+            if (participant.ws === ws) {
+              participants.delete(participant);
+            }
+          });
+          
+          // Broadcast participant left
+          broadcastToSession(currentSession, {
+            type: 'participant_left',
+            userId,
+            participantCount: participants.size
+          });
+          
+          // Remove empty sessions
+          if (participants.size === 0) {
+            sessionParticipants.delete(currentSession);
+          }
+        }
+      }
     });
   });
+  
+  function broadcastToSession(sessionId: string, message: any, excludeWs: any = null) {
+    if (!sessionId || !sessionParticipants.has(sessionId)) return;
+    
+    const participants = sessionParticipants.get(sessionId);
+    if (participants) {
+      participants.forEach((participant: any) => {
+        if (participant.ws !== excludeWs && participant.ws.readyState === WebSocket.OPEN) {
+          participant.ws.send(JSON.stringify(message));
+        }
+      });
+    }
+  }
 
   return httpServer;
 }

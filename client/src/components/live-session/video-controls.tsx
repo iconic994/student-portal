@@ -36,6 +36,8 @@ export default function VideoControls({
   const [isRecording, setIsRecording] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [handRaised, setHandRaised] = useState(false);
+  const [showParticipants, setShowParticipants] = useState(false);
+  const [showChat, setShowChat] = useState(true);
 
   const handleMuteToggle = () => {
     const newMuted = !isMuted;
