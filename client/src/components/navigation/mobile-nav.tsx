@@ -24,7 +24,7 @@ export default function MobileNav() {
       <div className="flex justify-around max-w-md mx-auto">
         {navigationItems.map((item) => (
           <Link key={item.href} href={item.href}>
-            <a className={`flex flex-col items-center space-y-1 p-2 rounded-lg transition-colors ${
+            <div className={`flex flex-col items-center space-y-1 p-2 rounded-lg transition-colors cursor-pointer ${
               item.isActive
                 ? "text-blue-600 dark:text-blue-400"
                 : "text-gray-600 dark:text-gray-400"
@@ -41,7 +41,7 @@ export default function MobileNav() {
                 )}
               </div>
               <span className="text-xs font-medium">{item.label}</span>
-            </a>
+            </div>
           </Link>
         ))}
       </div>

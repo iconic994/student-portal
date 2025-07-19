@@ -87,14 +87,14 @@ export default function Sidebar() {
           </h3>
           {navigationItems.map((item) => (
             <Link key={item.href} href={item.href}>
-              <a className={`flex items-center space-x-3 p-3 rounded-lg transition-colors ${
+              <div className={`flex items-center space-x-3 p-3 rounded-lg transition-colors cursor-pointer ${
                 item.isActive
                   ? "bg-blue-500/10 text-blue-600 dark:text-blue-400"
                   : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100"
               }`}>
                 <item.icon className="w-5 h-5" />
                 <span className="font-medium">{item.label}</span>
-              </a>
+              </div>
             </Link>
           ))}
         </nav>
@@ -113,9 +113,9 @@ export default function Sidebar() {
               {formatTimeLeft(upcomingSession.session.scheduledAt)}
             </p>
             <Link href={`/live-sessions/${upcomingSession.session.id}`}>
-              <Button className="w-full bg-white/20 hover:bg-white/30 text-white text-xs py-2 transition-colors border-0">
+              <div className="w-full bg-white/20 hover:bg-white/30 text-white text-xs py-2 transition-colors border-0 rounded cursor-pointer text-center font-medium">
                 Join Now
-              </Button>
+              </div>
             </Link>
           </div>
         )}

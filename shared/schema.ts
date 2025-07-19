@@ -177,6 +177,15 @@ export const resources = pgTable("resources", {
   uploadedAt: timestamp("uploaded_at").defaultNow(),
 });
 
+export const notes = pgTable("notes", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  moduleId: integer("module_id").notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Relations
 export const userRelations = relations(users, ({ many }) => ({
   enrollments: many(enrollments),

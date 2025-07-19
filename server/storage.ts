@@ -12,6 +12,7 @@ import {
   notifications,
   resources,
   moduleProgress,
+  notes,
   type User,
   type UpsertUser,
   type Course,
@@ -323,6 +324,37 @@ export class DatabaseStorage implements IStorage {
   async createResource(resource: InsertResource): Promise<Resource> {
     const [newResource] = await db.insert(resources).values(resource).returning();
     return newResource;
+  }
+
+  // Notes operations
+  async saveUserNotes(userId: string, moduleId: number, content: string): Promise<any> {
+    const existing = await db
+      .select()
+      .from(notes)
+      .where(and(eq(notes.userId, userId), eq(notes.moduleId, moduleId)));
+
+    if (existing.length > 0) {
+      const [updatedNote] = await db
+        .update(notes)
+        .set({ content, updatedAt: new Date() })
+        .where(and(eq(notes.userId, userId), eq(notes.moduleId, moduleId)))
+        .returning();
+      return updatedNote;
+    } else {
+      const [newNote] = await db
+        .insert(notes)
+        .values({ userId, moduleId, content })
+        .returning();
+      return newNote;
+    }
+  }
+
+  async getUserNotes(userId: string, moduleId: number): Promise<any> {
+    const [userNote] = await db
+      .select()
+      .from(notes)
+      .where(and(eq(notes.userId, userId), eq(notes.moduleId, moduleId)));
+    return userNote || null;
   }
 
   // Progress tracking

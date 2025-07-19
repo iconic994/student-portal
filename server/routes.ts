@@ -246,6 +246,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Notes routes
+  app.post('/api/modules/:moduleId/notes', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const moduleId = parseInt(req.params.moduleId);
+      const { content } = req.body;
+      
+      const note = await storage.saveUserNotes(userId, moduleId, content);
+      res.json(note);
+    } catch (error) {
+      console.error("Error saving notes:", error);
+      res.status(500).json({ message: "Failed to save notes" });
+    }
+  });
+
+  app.get('/api/modules/:moduleId/notes', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const moduleId = parseInt(req.params.moduleId);
+      
+      const notes = await storage.getUserNotes(userId, moduleId);
+      res.json(notes);
+    } catch (error) {
+      console.error("Error fetching notes:", error);
+      res.status(500).json({ message: "Failed to fetch notes" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   // WebSocket server for real-time features

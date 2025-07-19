@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
-import { useParams } from "wouter";
-import { useEffect, useState } from "react";
+import { useParams, useLocation } from "wouter";
+import { useEffect, useState, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import Header from "@/components/navigation/header";
@@ -29,9 +29,12 @@ export default function CourseModule() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading, user } = useAuth();
   const { id: courseId, moduleId } = useParams();
+  const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const [notes, setNotes] = useState("");
   const [comment, setComment] = useState("");
+  const [watchTime, setWatchTime] = useState(0);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -47,6 +50,27 @@ export default function CourseModule() {
       return;
     }
   }, [isAuthenticated, isLoading, toast]);
+
+  // Load existing notes when module loads
+  useEffect(() => {
+    const loadNotes = async () => {
+      if (moduleId && isAuthenticated) {
+        try {
+          const response = await fetch(`/api/modules/${moduleId}/notes`);
+          if (response.ok) {
+            const data = await response.json();
+            if (data?.content) {
+              setNotes(data.content);
+            }
+          }
+        } catch (error) {
+          console.error('Error loading notes:', error);
+        }
+      }
+    };
+    
+    loadNotes();
+  }, [moduleId, isAuthenticated]);
 
   const { data: course, isLoading: courseLoading } = useQuery({
     queryKey: ["/api/courses", courseId],
@@ -100,8 +124,21 @@ export default function CourseModule() {
     },
   });
 
+  const notesMutation = useMutation({
+    mutationFn: async (content: string) => {
+      return await apiRequest("POST", `/api/modules/${moduleId}/notes`, { content });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Notes saved",
+        description: "Your notes have been saved successfully.",
+      });
+    },
+  });
+
   const handleMarkComplete = () => {
-    progressMutation.mutate({ watchTime: 0, isCompleted: true });
+    const currentWatchTime = videoRef.current ? Math.floor(videoRef.current.currentTime) : watchTime;
+    progressMutation.mutate({ watchTime: currentWatchTime, isCompleted: true });
     toast({
       title: "Module completed",
       description: "Great job! You've completed this module.",
@@ -111,6 +148,27 @@ export default function CourseModule() {
   const handlePostComment = () => {
     if (!comment.trim()) return;
     commentMutation.mutate(comment);
+  };
+
+  const handleSaveNotes = () => {
+    if (!notes.trim()) return;
+    notesMutation.mutate(notes);
+  };
+
+  const handleModuleClick = (newModuleId: number) => {
+    setLocation(`/courses/${courseId}/module/${newModuleId}`);
+  };
+
+  const handleTimeUpdate = () => {
+    if (videoRef.current) {
+      const currentTime = Math.floor(videoRef.current.currentTime);
+      setWatchTime(currentTime);
+      
+      // Auto-save progress every 30 seconds
+      if (currentTime % 30 === 0 && currentTime > 0) {
+        progressMutation.mutate({ watchTime: currentTime, isCompleted: false });
+      }
+    }
   };
 
   if (isLoading || !isAuthenticated) {
@@ -151,7 +209,10 @@ export default function CourseModule() {
                     {modules?.map((module: any, index: number) => (
                       <div
                         key={module.id}
-                        className={`p-3 rounded-lg border transition-colors cursor-pointer ${
+                        onClick={() => !module.isLocked && handleModuleClick(module.id)}
+                        className={`p-3 rounded-lg border transition-colors ${
+                          module.isLocked ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+                        } ${
                           module.id === parseInt(moduleId!)
                             ? "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700"
                             : "hover:bg-gray-50 dark:hover:bg-gray-700 border-gray-200 dark:border-gray-700"
@@ -168,6 +229,11 @@ export default function CourseModule() {
                               Module {index + 1}
                             </h4>
                             <p className="text-gray-600 dark:text-gray-400 text-xs truncate">{module.title}</p>
+                            {module.durationMinutes && (
+                              <p className="text-gray-500 dark:text-gray-500 text-xs">
+                                {module.durationMinutes} min
+                              </p>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -185,9 +251,24 @@ export default function CourseModule() {
                   <div className="relative aspect-video bg-gray-900 rounded-t-lg">
                     {currentModule?.videoUrl ? (
                       <video
+                        ref={videoRef}
                         controls
                         className="w-full h-full rounded-t-lg"
                         poster="https://images.unsplash.com/photo-1513475382585-d06e58bcb0e0?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&h=1080"
+                        onTimeUpdate={handleTimeUpdate}
+                        onLoadedMetadata={() => {
+                          if (videoRef.current) {
+                            console.log('Video loaded:', currentModule.title);
+                          }
+                        }}
+                        onError={(e) => {
+                          console.error('Video error:', e);
+                          toast({
+                            title: "Video Error",
+                            description: "There was an issue loading the video. Please try refreshing.",
+                            variant: "destructive"
+                          });
+                        }}
                       >
                         <source src={currentModule.videoUrl} type="video/mp4" />
                         Your browser does not support the video tag.
@@ -201,10 +282,10 @@ export default function CourseModule() {
                         </div>
                       </div>
                     )}
-                    {currentModule?.duration && (
+                    {currentModule?.durationMinutes && (
                       <div className="absolute bottom-4 left-4 bg-black/70 backdrop-blur-sm rounded-lg px-3 py-2">
                         <span className="text-white text-sm">
-                          Duration: {currentModule.duration} minutes
+                          Duration: {currentModule.durationMinutes} minutes
                         </span>
                       </div>
                     )}
@@ -248,7 +329,12 @@ export default function CourseModule() {
                         onChange={(e) => setNotes(e.target.value)}
                         className="min-h-32"
                       />
-                      <Button>Save Notes</Button>
+                      <Button 
+                        onClick={handleSaveNotes} 
+                        disabled={!notes.trim() || notesMutation.isPending}
+                      >
+                        {notesMutation.isPending ? "Saving..." : "Save Notes"}
+                      </Button>
                     </div>
                   </TabsContent>
 
