@@ -50,6 +50,7 @@ export default function Sidebar() {
     { href: "/", icon: Home, label: "Dashboard", isActive: location === "/" },
     { href: "/courses", icon: BookOpen, label: "My Courses", isActive: location === "/courses" },
     { href: "/live-sessions", icon: Video, label: "Live Sessions", isActive: location.startsWith("/live-sessions") },
+    { href: "/community", icon: Users, label: "Community", isActive: location.startsWith("/community") },
     { href: "/assignments", icon: FileText, label: "Assignments", isActive: location === "/assignments" },
     { href: "/certificates", icon: Award, label: "Certificates", isActive: location === "/certificates" },
   ];

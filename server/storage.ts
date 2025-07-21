@@ -13,6 +13,11 @@ import {
   resources,
   moduleProgress,
   notes,
+  communities,
+  communityMembers,
+  communityPosts,
+  communityComments,
+  communityReactions,
   type User,
   type UpsertUser,
   type Course,
@@ -26,6 +31,10 @@ import {
   type Notification,
   type Resource,
   type ModuleProgress,
+  type Community,
+  type CommunityPost,
+  type CommunityComment,
+  type CommunityReaction,
   type InsertCourse,
   type InsertModule,
   type InsertEnrollment,
@@ -35,6 +44,10 @@ import {
   type InsertDiscussion,
   type InsertNotification,
   type InsertResource,
+  type InsertCommunity,
+  type InsertCommunityPost,
+  type InsertCommunityComment,
+  type InsertCommunityReaction,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, sql, gte, lte } from "drizzle-orm";
@@ -355,6 +368,221 @@ export class DatabaseStorage implements IStorage {
       .from(notes)
       .where(and(eq(notes.userId, userId), eq(notes.moduleId, moduleId)));
     return userNote || null;
+  }
+
+  // Community operations
+  async getCommunities(limit = 20, category?: string): Promise<any[]> {
+    const query = db
+      .select({
+        community: communities,
+        memberCount: communities.memberCount,
+        postCount: communities.postCount,
+      })
+      .from(communities)
+      .orderBy(desc(communities.createdAt))
+      .limit(limit);
+    
+    if (category) {
+      query.where(eq(communities.category, category));
+    }
+    
+    return await query;
+  }
+
+  async getCommunity(id: number): Promise<any> {
+    const [community] = await db
+      .select()
+      .from(communities)
+      .where(eq(communities.id, id));
+    return community;
+  }
+
+  async createCommunity(community: InsertCommunity): Promise<Community> {
+    const [newCommunity] = await db
+      .insert(communities)
+      .values(community)
+      .returning();
+    return newCommunity;
+  }
+
+  async joinCommunity(userId: string, communityId: number): Promise<void> {
+    // Check if already member
+    const existing = await db
+      .select()
+      .from(communityMembers)
+      .where(and(eq(communityMembers.userId, userId), eq(communityMembers.communityId, communityId)));
+    
+    if (existing.length === 0) {
+      await db.insert(communityMembers).values({
+        userId,
+        communityId,
+        role: 'member'
+      });
+      
+      // Update member count
+      await db
+        .update(communities)
+        .set({ memberCount: sql`${communities.memberCount} + 1` })
+        .where(eq(communities.id, communityId));
+    }
+  }
+
+  async leaveCommunity(userId: string, communityId: number): Promise<void> {
+    await db
+      .delete(communityMembers)
+      .where(and(eq(communityMembers.userId, userId), eq(communityMembers.communityId, communityId)));
+    
+    // Update member count
+    await db
+      .update(communities)
+      .set({ memberCount: sql`${communities.memberCount} - 1` })
+      .where(eq(communities.id, communityId));
+  }
+
+  async isCommunityMember(userId: string, communityId: number): Promise<boolean> {
+    const [member] = await db
+      .select()
+      .from(communityMembers)
+      .where(and(eq(communityMembers.userId, userId), eq(communityMembers.communityId, communityId)));
+    return !!member;
+  }
+
+  async getCommunityPosts(communityId: number, limit = 20): Promise<any[]> {
+    return await db
+      .select({
+        post: communityPosts,
+        author: {
+          id: users.id,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          profileImageUrl: users.profileImageUrl,
+        },
+        likeCount: communityPosts.likeCount,
+        commentCount: communityPosts.commentCount,
+        shareCount: communityPosts.shareCount,
+      })
+      .from(communityPosts)
+      .leftJoin(users, eq(communityPosts.authorId, users.id))
+      .where(eq(communityPosts.communityId, communityId))
+      .orderBy(desc(communityPosts.isPinned), desc(communityPosts.createdAt))
+      .limit(limit);
+  }
+
+  async createPost(post: InsertCommunityPost): Promise<CommunityPost> {
+    const [newPost] = await db
+      .insert(communityPosts)
+      .values(post)
+      .returning();
+    
+    // Update post count
+    await db
+      .update(communities)
+      .set({ postCount: sql`${communities.postCount} + 1` })
+      .where(eq(communities.id, post.communityId));
+    
+    return newPost;
+  }
+
+  async getPostComments(postId: number): Promise<any[]> {
+    return await db
+      .select({
+        comment: communityComments,
+        author: {
+          id: users.id,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          profileImageUrl: users.profileImageUrl,
+        },
+      })
+      .from(communityComments)
+      .leftJoin(users, eq(communityComments.authorId, users.id))
+      .where(eq(communityComments.postId, postId))
+      .orderBy(communityComments.createdAt);
+  }
+
+  async createComment(comment: InsertCommunityComment): Promise<CommunityComment> {
+    const [newComment] = await db
+      .insert(communityComments)
+      .values(comment)
+      .returning();
+    
+    // Update comment count
+    await db
+      .update(communityPosts)
+      .set({ commentCount: sql`${communityPosts.commentCount} + 1` })
+      .where(eq(communityPosts.id, comment.postId));
+    
+    return newComment;
+  }
+
+  async toggleReaction(userId: string, targetType: string, targetId: number, reactionType: string): Promise<void> {
+    // Check if reaction exists
+    const existing = await db
+      .select()
+      .from(communityReactions)
+      .where(and(
+        eq(communityReactions.userId, userId),
+        eq(communityReactions.targetType, targetType),
+        eq(communityReactions.targetId, targetId)
+      ));
+
+    if (existing.length > 0) {
+      // Remove existing reaction
+      await db
+        .delete(communityReactions)
+        .where(and(
+          eq(communityReactions.userId, userId),
+          eq(communityReactions.targetType, targetType),
+          eq(communityReactions.targetId, targetId)
+        ));
+      
+      // Update count
+      if (targetType === 'post') {
+        await db
+          .update(communityPosts)
+          .set({ likeCount: sql`${communityPosts.likeCount} - 1` })
+          .where(eq(communityPosts.id, targetId));
+      } else if (targetType === 'comment') {
+        await db
+          .update(communityComments)
+          .set({ likeCount: sql`${communityComments.likeCount} - 1` })
+          .where(eq(communityComments.id, targetId));
+      }
+    } else {
+      // Add new reaction
+      await db.insert(communityReactions).values({
+        userId,
+        targetType,
+        targetId,
+        reactionType
+      });
+      
+      // Update count
+      if (targetType === 'post') {
+        await db
+          .update(communityPosts)
+          .set({ likeCount: sql`${communityPosts.likeCount} + 1` })
+          .where(eq(communityPosts.id, targetId));
+      } else if (targetType === 'comment') {
+        await db
+          .update(communityComments)
+          .set({ likeCount: sql`${communityComments.likeCount} + 1` })
+          .where(eq(communityComments.id, targetId));
+      }
+    }
+  }
+
+  async getUserCommunities(userId: string): Promise<any[]> {
+    return await db
+      .select({
+        community: communities,
+        memberRole: communityMembers.role,
+        joinedAt: communityMembers.joinedAt,
+      })
+      .from(communityMembers)
+      .leftJoin(communities, eq(communityMembers.communityId, communities.id))
+      .where(eq(communityMembers.userId, userId))
+      .orderBy(desc(communityMembers.joinedAt));
   }
 
   // Progress tracking

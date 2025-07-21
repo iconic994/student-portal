@@ -11,6 +11,8 @@ import Courses from "@/pages/courses";
 import CourseModule from "@/pages/course-module";
 import LiveSessions from "@/pages/live-sessions";
 import LiveSessionRoom from "@/pages/live-session-room";
+import Community from "@/pages/community";
+import CommunityDetail from "@/pages/community-detail";
 import Assignments from "@/pages/assignments";
 import Certificates from "@/pages/certificates";
 import NotFound from "@/pages/not-found";
@@ -29,6 +31,8 @@ function Router() {
           <Route path="/courses/:id/modules/:moduleId" component={CourseModule} />
           <Route path="/live-sessions" component={LiveSessions} />
           <Route path="/live-sessions/:id" component={LiveSessionRoom} />
+          <Route path="/community" component={Community} />
+          <Route path="/community/:id" component={CommunityDetail} />
           <Route path="/assignments" component={Assignments} />
           <Route path="/certificates" component={Certificates} />
         </>

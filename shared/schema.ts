@@ -274,6 +274,78 @@ export const insertDiscussionSchema = createInsertSchema(discussions).omit({
   createdAt: true,
 });
 
+// Community tables
+export const communities = pgTable("communities", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  imageUrl: varchar("image_url"),
+  category: varchar("category", { length: 100 }).notNull(),
+  isPublic: boolean("is_public").default(true),
+  memberCount: integer("member_count").default(0),
+  postCount: integer("post_count").default(0),
+  createdBy: varchar("created_by").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const communityMembers = pgTable("community_members", {
+  id: serial("id").primaryKey(),
+  communityId: integer("community_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  role: varchar("role", { length: 50 }).default("member"), // member, moderator, admin
+  joinedAt: timestamp("joined_at").defaultNow(),
+});
+
+export const communityPosts = pgTable("community_posts", {
+  id: serial("id").primaryKey(),
+  communityId: integer("community_id").notNull(),
+  authorId: varchar("author_id").notNull(),
+  title: varchar("title", { length: 500 }),
+  content: text("content").notNull(),
+  type: varchar("type", { length: 50 }).default("text"), // text, image, video, link, poll
+  attachments: jsonb("attachments"), // Array of attachment URLs
+  tags: text("tags").array(), // Array of tags
+  isPinned: boolean("is_pinned").default(false),
+  likeCount: integer("like_count").default(0),
+  commentCount: integer("comment_count").default(0),
+  shareCount: integer("share_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const communityComments = pgTable("community_comments", {
+  id: serial("id").primaryKey(),
+  postId: integer("post_id").notNull(),
+  authorId: varchar("author_id").notNull(),
+  content: text("content").notNull(),
+  parentId: integer("parent_id"), // For nested replies
+  likeCount: integer("like_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const communityReactions = pgTable("community_reactions", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  targetType: varchar("target_type", { length: 20 }).notNull(), // post, comment
+  targetId: integer("target_id").notNull(),
+  reactionType: varchar("reaction_type", { length: 20 }).notNull(), // like, love, laugh, wow, sad, angry
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Community types
+export type Community = typeof communities.$inferSelect;
+export type InsertCommunity = typeof communities.$inferInsert;
+export type CommunityMember = typeof communityMembers.$inferSelect;
+export type InsertCommunityMember = typeof communityMembers.$inferInsert;
+export type CommunityPost = typeof communityPosts.$inferSelect;
+export type InsertCommunityPost = typeof communityPosts.$inferInsert;
+export type CommunityComment = typeof communityComments.$inferSelect;
+export type InsertCommunityComment = typeof communityComments.$inferInsert;
+export type CommunityReaction = typeof communityReactions.$inferSelect;
+export type InsertCommunityReaction = typeof communityReactions.$inferInsert;
+
 export const insertNotificationSchema = createInsertSchema(notifications).omit({
   id: true,
   createdAt: true,

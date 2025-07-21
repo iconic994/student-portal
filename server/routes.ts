@@ -274,6 +274,165 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Community routes
+  app.get('/api/communities', async (req, res) => {
+    try {
+      const { category, limit } = req.query;
+      const communities = await storage.getCommunities(
+        limit ? parseInt(limit as string) : 20,
+        category as string
+      );
+      res.json(communities);
+    } catch (error) {
+      console.error("Error fetching communities:", error);
+      res.status(500).json({ message: "Failed to fetch communities" });
+    }
+  });
+
+  app.get('/api/communities/:id', async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const community = await storage.getCommunity(id);
+      if (!community) {
+        return res.status(404).json({ message: "Community not found" });
+      }
+      res.json(community);
+    } catch (error) {
+      console.error("Error fetching community:", error);
+      res.status(500).json({ message: "Failed to fetch community" });
+    }
+  });
+
+  app.post('/api/communities', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const communityData = { ...req.body, createdBy: userId };
+      const community = await storage.createCommunity(communityData);
+      
+      // Auto-join creator as admin
+      await storage.joinCommunity(userId, community.id);
+      
+      res.status(201).json(community);
+    } catch (error) {
+      console.error("Error creating community:", error);
+      res.status(500).json({ message: "Failed to create community" });
+    }
+  });
+
+  app.post('/api/communities/:id/join', isAuthenticated, async (req: any, res) => {
+    try {
+      const communityId = parseInt(req.params.id);
+      const userId = req.user.claims.sub;
+      
+      await storage.joinCommunity(userId, communityId);
+      res.json({ message: "Successfully joined community" });
+    } catch (error) {
+      console.error("Error joining community:", error);
+      res.status(500).json({ message: "Failed to join community" });
+    }
+  });
+
+  app.delete('/api/communities/:id/leave', isAuthenticated, async (req: any, res) => {
+    try {
+      const communityId = parseInt(req.params.id);
+      const userId = req.user.claims.sub;
+      
+      await storage.leaveCommunity(userId, communityId);
+      res.json({ message: "Successfully left community" });
+    } catch (error) {
+      console.error("Error leaving community:", error);
+      res.status(500).json({ message: "Failed to leave community" });
+    }
+  });
+
+  app.get('/api/communities/:id/posts', async (req, res) => {
+    try {
+      const communityId = parseInt(req.params.id);
+      const { limit } = req.query;
+      
+      const posts = await storage.getCommunityPosts(
+        communityId,
+        limit ? parseInt(limit as string) : 20
+      );
+      res.json(posts);
+    } catch (error) {
+      console.error("Error fetching posts:", error);
+      res.status(500).json({ message: "Failed to fetch posts" });
+    }
+  });
+
+  app.post('/api/communities/:id/posts', isAuthenticated, async (req: any, res) => {
+    try {
+      const communityId = parseInt(req.params.id);
+      const userId = req.user.claims.sub;
+      
+      // Check if user is member
+      const isMember = await storage.isCommunityMember(userId, communityId);
+      if (!isMember) {
+        return res.status(403).json({ message: "Must be a community member to post" });
+      }
+      
+      const postData = { ...req.body, communityId, authorId: userId };
+      const post = await storage.createPost(postData);
+      res.status(201).json(post);
+    } catch (error) {
+      console.error("Error creating post:", error);
+      res.status(500).json({ message: "Failed to create post" });
+    }
+  });
+
+  app.get('/api/posts/:id/comments', async (req, res) => {
+    try {
+      const postId = parseInt(req.params.id);
+      const comments = await storage.getPostComments(postId);
+      res.json(comments);
+    } catch (error) {
+      console.error("Error fetching comments:", error);
+      res.status(500).json({ message: "Failed to fetch comments" });
+    }
+  });
+
+  app.post('/api/posts/:id/comments', isAuthenticated, async (req: any, res) => {
+    try {
+      const postId = parseInt(req.params.id);
+      const userId = req.user.claims.sub;
+      
+      const commentData = { ...req.body, postId, authorId: userId };
+      const comment = await storage.createComment(commentData);
+      res.status(201).json(comment);
+    } catch (error) {
+      console.error("Error creating comment:", error);
+      res.status(500).json({ message: "Failed to create comment" });
+    }
+  });
+
+  app.post('/api/:targetType/:id/react', isAuthenticated, async (req: any, res) => {
+    try {
+      const targetType = req.params.targetType; // 'posts' or 'comments'
+      const targetId = parseInt(req.params.id);
+      const userId = req.user.claims.sub;
+      const { reactionType = 'like' } = req.body;
+      
+      const cleanTargetType = targetType === 'posts' ? 'post' : 'comment';
+      await storage.toggleReaction(userId, cleanTargetType, targetId, reactionType);
+      res.json({ message: "Reaction toggled successfully" });
+    } catch (error) {
+      console.error("Error toggling reaction:", error);
+      res.status(500).json({ message: "Failed to toggle reaction" });
+    }
+  });
+
+  app.get('/api/user/communities', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const communities = await storage.getUserCommunities(userId);
+      res.json(communities);
+    } catch (error) {
+      console.error("Error fetching user communities:", error);
+      res.status(500).json({ message: "Failed to fetch user communities" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   // WebSocket server for real-time features
