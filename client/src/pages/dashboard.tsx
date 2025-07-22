@@ -15,6 +15,21 @@ import { BookOpen, Clock, Award, Bell, Calendar, Users } from "lucide-react";
 export default function Dashboard() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading, user } = useAuth();
+  
+  // Check onboarding status
+  const { data: onboardingStatus } = useQuery({
+    queryKey: ["/api/user/onboarding"],
+    enabled: isAuthenticated,
+  });
+
+  // Redirect to onboarding if not completed
+  useEffect(() => {
+    if (isAuthenticated && onboardingStatus === null) {
+      // New user, redirect to onboarding
+      window.location.href = "/onboarding";
+      return;
+    }
+  }, [isAuthenticated, onboardingStatus]);
 
   // Redirect to login if not authenticated
   useEffect(() => {

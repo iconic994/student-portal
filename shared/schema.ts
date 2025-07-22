@@ -530,3 +530,6 @@ export const insertLeaderboardSchema = createInsertSchema(leaderboards).omit({
   id: true,
   calculatedAt: true,
 });
+
+// Export all additional schemas
+export * from './onboarding-schema';

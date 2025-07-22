@@ -72,6 +72,12 @@ import {
   type InsertUserAchievement,
   type InsertStreak,
   type InsertLeaderboard,
+  userOnboarding,
+  onboardingRecommendations,
+  onboardingSteps,
+  activityStreaks,
+  type UserOnboarding,
+  type OnboardingRecommendation,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, sql, gte, lte } from "drizzle-orm";
@@ -987,6 +993,68 @@ export class DatabaseStorage implements IStorage {
         score: monthlyLeaders[i].monthlyPoints ?? 0,
       });
     }
+  }
+
+  // Onboarding Operations
+  async getUserOnboarding(userId: string): Promise<UserOnboarding | null> {
+    const result = await db.select().from(userOnboarding).where(eq(userOnboarding.userId, userId)).limit(1);
+    return result[0] || null;
+  }
+
+  async createUserOnboarding(data: any): Promise<UserOnboarding> {
+    const result = await db.insert(userOnboarding).values(data).returning();
+    return result[0];
+  }
+
+  async updateUserOnboarding(userId: string, data: any): Promise<UserOnboarding> {
+    const result = await db.update(userOnboarding)
+      .set({...data, updatedAt: new Date()})
+      .where(eq(userOnboarding.userId, userId))
+      .returning();
+    return result[0];
+  }
+
+  async getOnboardingSteps(): Promise<any[]> {
+    return await db.select().from(onboardingSteps)
+      .where(eq(onboardingSteps.isActive, true))
+      .orderBy(onboardingSteps.stepNumber);
+  }
+
+  async createOnboardingRecommendations(userId: string, recommendations: any[]): Promise<void> {
+    if (recommendations.length > 0) {
+      await db.insert(onboardingRecommendations).values(
+        recommendations.map(rec => ({
+          userId,
+          communityId: rec.communityId,
+          score: rec.score,
+          reason: rec.reason
+        }))
+      );
+    }
+  }
+
+  async getOnboardingRecommendations(userId: string): Promise<any[]> {
+    return await db.select({
+      id: onboardingRecommendations.id,
+      userId: onboardingRecommendations.userId,
+      communityId: onboardingRecommendations.communityId,
+      score: onboardingRecommendations.score,
+      reason: onboardingRecommendations.reason,
+      isJoined: onboardingRecommendations.isJoined,
+      createdAt: onboardingRecommendations.createdAt,
+      community: {
+        id: communities.id,
+        name: communities.name,
+        description: communities.description,
+        imageUrl: communities.imageUrl,
+        category: communities.category,
+        memberCount: communities.memberCount
+      }
+    })
+    .from(onboardingRecommendations)
+    .leftJoin(communities, eq(onboardingRecommendations.communityId, communities.id))
+    .where(eq(onboardingRecommendations.userId, userId))
+    .orderBy(desc(onboardingRecommendations.score));
   }
 }
 

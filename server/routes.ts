@@ -612,6 +612,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Onboarding routes
+  app.get('/api/onboarding/steps', isAuthenticated, async (req: any, res) => {
+    try {
+      const steps = await storage.getOnboardingSteps();
+      res.json(steps);
+    } catch (error) {
+      console.error("Error fetching onboarding steps:", error);
+      res.status(500).json({ message: "Failed to fetch onboarding steps" });
+    }
+  });
+
+  app.get('/api/user/onboarding', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const onboarding = await storage.getUserOnboarding(userId);
+      res.json(onboarding);
+    } catch (error) {
+      console.error("Error fetching user onboarding:", error);
+      res.status(500).json({ message: "Failed to fetch onboarding progress" });
+    }
+  });
+
+  app.post('/api/user/onboarding', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const onboarding = await storage.createUserOnboarding({
+        userId,
+        currentStep: 1,
+        ...req.body
+      });
+      res.json(onboarding);
+    } catch (error) {
+      console.error("Error creating onboarding:", error);
+      res.status(500).json({ message: "Failed to create onboarding" });
+    }
+  });
+
+  app.put('/api/user/onboarding', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const onboarding = await storage.updateUserOnboarding(userId, req.body);
+      
+      // Generate recommendations if completed
+      if (req.body.isCompleted && req.body.interests && req.body.interests.length > 0) {
+        const communities = await storage.getCommunities();
+        const recommendations = generateCommunityRecommendations(communities, req.body);
+        if (recommendations.length > 0) {
+          await storage.createOnboardingRecommendations(userId, recommendations);
+        }
+      }
+      
+      res.json(onboarding);
+    } catch (error) {
+      console.error("Error updating onboarding:", error);
+      res.status(500).json({ message: "Failed to update onboarding" });
+    }
+  });
+
+  app.get('/api/user/onboarding/recommendations', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const recommendations = await storage.getOnboardingRecommendations(userId);
+      res.json(recommendations);
+    } catch (error) {
+      console.error("Error fetching recommendations:", error);
+      res.status(500).json({ message: "Failed to fetch recommendations" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   // WebSocket server for real-time features
@@ -771,4 +840,93 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   return httpServer;
+}
+
+// Helper function to generate community recommendations based on user preferences
+function generateCommunityRecommendations(communities: any[], userProfile: any): any[] {
+  const recommendations = [];
+  const interests = userProfile.interests || [];
+  const experienceLevel = userProfile.experienceLevel || 'beginner';
+  const goals = userProfile.goals || [];
+
+  // Interest matching scores
+  const interestMap: Record<string, string[]> = {
+    'web_development': ['JavaScript Developers', 'Frontend Masters', 'Full Stack', 'React Community'],
+    'data_science': ['Data Scientists', 'Python Analytics', 'ML Engineers'],
+    'mobile_development': ['Mobile Developers', 'React Native', 'Flutter Community'],
+    'machine_learning': ['AI/ML Hub', 'Deep Learning', 'Data Scientists'],
+    'ui_ux_design': ['Design Community', 'UX/UI Designers', 'Creative Hub'],
+    'cloud_computing': ['Cloud Engineers', 'DevOps Community', 'AWS/Azure'],
+    'cybersecurity': ['Security Experts', 'Ethical Hackers', 'InfoSec'],
+    'digital_marketing': ['Marketing Professionals', 'Growth Hackers'],
+    'business_strategy': ['Business Leaders', 'Entrepreneurs', 'Strategy'],
+    'photography': ['Creative Hub', 'Visual Arts', 'Photography']
+  };
+
+  for (const community of communities) {
+    let score = 0;
+    let reasons = [];
+
+    // Check interest matching
+    for (const interest of interests) {
+      const matchingCategories = interestMap[interest] || [];
+      if (matchingCategories.some(cat => 
+        community.community.name.toLowerCase().includes(cat.toLowerCase()) ||
+        community.community.category.toLowerCase().includes(interest.replace('_', ' '))
+      )) {
+        score += 40;
+        reasons.push(`Matches your interest in ${interest.replace('_', ' ')}`);
+        break;
+      }
+    }
+
+    // Experience level matching
+    const communityName = community.community.name.toLowerCase();
+    if (experienceLevel === 'beginner' && (
+      communityName.includes('beginner') || 
+      communityName.includes('learning') ||
+      communityName.includes('study')
+    )) {
+      score += 20;
+      reasons.push('Perfect for beginners');
+    } else if (experienceLevel === 'advanced' && (
+      communityName.includes('advanced') ||
+      communityName.includes('expert') ||
+      communityName.includes('professional')
+    )) {
+      score += 20;
+      reasons.push('Suitable for advanced learners');
+    }
+
+    // Goal alignment
+    for (const goal of goals) {
+      if (goal === 'career_change' && communityName.includes('career')) {
+        score += 15;
+        reasons.push('Great for career transitions');
+      } else if (goal === 'skill_enhancement' && communityName.includes('skill')) {
+        score += 15;
+        reasons.push('Focused on skill development');
+      }
+    }
+
+    // Community activity bonus
+    if (community.community.memberCount > 100) {
+      score += 10;
+      reasons.push('Active community');
+    }
+
+    // Only recommend if score is meaningful
+    if (score >= 30) {
+      recommendations.push({
+        communityId: community.community.id,
+        score: Math.min(score, 100),
+        reason: reasons.join(', ')
+      });
+    }
+  }
+
+  // Sort by score and return top recommendations
+  return recommendations
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5);
 }
