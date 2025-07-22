@@ -18,6 +18,14 @@ import {
   communityPosts,
   communityComments,
   communityReactions,
+  userPoints,
+  pointsHistory,
+  badges,
+  userBadges,
+  achievements,
+  userAchievements,
+  streaks,
+  leaderboards,
   type User,
   type UpsertUser,
   type Course,
@@ -35,6 +43,14 @@ import {
   type CommunityPost,
   type CommunityComment,
   type CommunityReaction,
+  type UserPoints,
+  type PointsHistory,
+  type Badge,
+  type UserBadge,
+  type Achievement,
+  type UserAchievement,
+  type Streak,
+  type Leaderboard,
   type InsertCourse,
   type InsertModule,
   type InsertEnrollment,
@@ -48,6 +64,14 @@ import {
   type InsertCommunityPost,
   type InsertCommunityComment,
   type InsertCommunityReaction,
+  type InsertUserPoints,
+  type InsertPointsHistory,
+  type InsertBadge,
+  type InsertUserBadge,
+  type InsertAchievement,
+  type InsertUserAchievement,
+  type InsertStreak,
+  type InsertLeaderboard,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, sql, gte, lte } from "drizzle-orm";
@@ -105,6 +129,31 @@ export interface IStorage {
   // Progress tracking
   updateModuleProgress(userId: string, moduleId: number, watchTime: number, isCompleted: boolean): Promise<void>;
   getUserModuleProgress(userId: string, moduleId: number): Promise<ModuleProgress | undefined>;
+  
+  // Gamification operations
+  getUserPoints(userId: string): Promise<UserPoints | undefined>;
+  awardPoints(userId: string, points: number, action: string, description?: string, sourceType?: string, sourceId?: number): Promise<void>;
+  getUserPointsHistory(userId: string, limit?: number): Promise<PointsHistory[]>;
+  
+  // Badge operations  
+  getBadges(): Promise<Badge[]>;
+  getUserBadges(userId: string): Promise<any[]>;
+  awardBadge(userId: string, badgeId: number): Promise<void>;
+  createBadge(badge: InsertBadge): Promise<Badge>;
+  
+  // Achievement operations
+  getAchievements(): Promise<Achievement[]>;
+  getUserAchievements(userId: string): Promise<any[]>;
+  updateAchievementProgress(userId: string, achievementId: number, progress: number): Promise<void>;
+  checkAndCompleteAchievements(userId: string): Promise<void>;
+  
+  // Streak operations
+  getUserStreaks(userId: string): Promise<Streak[]>;
+  updateStreak(userId: string, streakType: string): Promise<void>;
+  
+  // Leaderboard operations
+  getLeaderboard(type: string, period: string, limit?: number): Promise<any[]>;
+  updateLeaderboards(): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -618,6 +667,326 @@ export class DatabaseStorage implements IStorage {
       .from(moduleProgress)
       .where(and(eq(moduleProgress.userId, userId), eq(moduleProgress.moduleId, moduleId)));
     return progress;
+  }
+
+  // Gamification operations
+  async getUserPoints(userId: string): Promise<UserPoints | undefined> {
+    const [points] = await db
+      .select()
+      .from(userPoints)
+      .where(eq(userPoints.userId, userId));
+    return points;
+  }
+
+  async awardPoints(userId: string, points: number, action: string, description?: string, sourceType?: string, sourceId?: number): Promise<void> {
+    // First ensure user has points record
+    const existingPoints = await this.getUserPoints(userId);
+    
+    if (!existingPoints) {
+      await db.insert(userPoints).values({
+        userId,
+        totalPoints: points,
+        weeklyPoints: points,
+        monthlyPoints: points,
+        level: 1,
+        currentLevelPoints: points,
+        pointsToNextLevel: Math.max(0, 100 - points),
+      });
+    } else {
+      // Calculate level progression
+      const newTotal = (existingPoints.totalPoints ?? 0) + points;
+      const currentLevel = existingPoints.level ?? 1;
+      const newLevelPoints = (existingPoints.currentLevelPoints ?? 0) + points;
+      
+      // Simple leveling system: 100 points for level 1, +50 per level
+      let level = currentLevel;
+      let levelPoints = newLevelPoints;
+      let pointsForNextLevel = existingPoints.pointsToNextLevel ?? 100;
+      
+      while (levelPoints >= pointsForNextLevel && pointsForNextLevel > 0) {
+        levelPoints -= pointsForNextLevel;
+        level++;
+        pointsForNextLevel = 100 + (level - 1) * 50; // Increasing requirements
+      }
+      
+      await db
+        .update(userPoints)
+        .set({
+          totalPoints: newTotal,
+          weeklyPoints: (existingPoints.weeklyPoints ?? 0) + points,
+          monthlyPoints: (existingPoints.monthlyPoints ?? 0) + points,
+          level,
+          currentLevelPoints: levelPoints,
+          pointsToNextLevel: pointsForNextLevel - levelPoints,
+          updatedAt: new Date(),
+        })
+        .where(eq(userPoints.userId, userId));
+    }
+
+    // Record points history
+    await db.insert(pointsHistory).values({
+      userId,
+      points,
+      action,
+      description,
+      sourceType,
+      sourceId,
+    });
+  }
+
+  async getUserPointsHistory(userId: string, limit: number = 20): Promise<PointsHistory[]> {
+    return await db
+      .select()
+      .from(pointsHistory)
+      .where(eq(pointsHistory.userId, userId))
+      .orderBy(desc(pointsHistory.createdAt))
+      .limit(limit);
+  }
+
+  // Badge operations
+  async getBadges(): Promise<Badge[]> {
+    return await db
+      .select()
+      .from(badges)
+      .where(eq(badges.isActive, true))
+      .orderBy(badges.name);
+  }
+
+  async getUserBadges(userId: string): Promise<any[]> {
+    return await db
+      .select({
+        badge: badges,
+        earnedAt: userBadges.earnedAt,
+        isVisible: userBadges.isVisible,
+      })
+      .from(userBadges)
+      .leftJoin(badges, eq(userBadges.badgeId, badges.id))
+      .where(eq(userBadges.userId, userId))
+      .orderBy(desc(userBadges.earnedAt));
+  }
+
+  async awardBadge(userId: string, badgeId: number): Promise<void> {
+    // Check if user already has this badge
+    const existing = await db
+      .select()
+      .from(userBadges)
+      .where(and(eq(userBadges.userId, userId), eq(userBadges.badgeId, badgeId)));
+    
+    if (existing.length === 0) {
+      await db.insert(userBadges).values({
+        userId,
+        badgeId,
+      });
+    }
+  }
+
+  async createBadge(badge: InsertBadge): Promise<Badge> {
+    const [newBadge] = await db.insert(badges).values(badge).returning();
+    return newBadge;
+  }
+
+  // Achievement operations
+  async getAchievements(): Promise<Achievement[]> {
+    return await db
+      .select()
+      .from(achievements)
+      .where(eq(achievements.isActive, true))
+      .orderBy(achievements.name);
+  }
+
+  async getUserAchievements(userId: string): Promise<any[]> {
+    return await db
+      .select({
+        achievement: achievements,
+        progress: userAchievements.progress,
+        isCompleted: userAchievements.isCompleted,
+        completedAt: userAchievements.completedAt,
+      })
+      .from(userAchievements)
+      .leftJoin(achievements, eq(userAchievements.achievementId, achievements.id))
+      .where(eq(userAchievements.userId, userId))
+      .orderBy(desc(userAchievements.completedAt));
+  }
+
+  async updateAchievementProgress(userId: string, achievementId: number, progress: number): Promise<void> {
+    const existing = await db
+      .select()
+      .from(userAchievements)
+      .where(and(eq(userAchievements.userId, userId), eq(userAchievements.achievementId, achievementId)));
+
+    if (existing.length > 0) {
+      await db
+        .update(userAchievements)
+        .set({
+          progress: progress.toString(),
+          isCompleted: progress >= 100,
+          completedAt: progress >= 100 ? new Date() : null,
+          lastUpdated: new Date(),
+        })
+        .where(and(eq(userAchievements.userId, userId), eq(userAchievements.achievementId, achievementId)));
+    } else {
+      await db.insert(userAchievements).values({
+        userId,
+        achievementId,
+        progress: progress.toString(),
+        isCompleted: progress >= 100,
+        completedAt: progress >= 100 ? new Date() : null,
+      });
+    }
+  }
+
+  async checkAndCompleteAchievements(userId: string): Promise<void> {
+    // This would contain logic to check various achievement criteria
+    // For now, implement basic ones
+    const userStats = await this.getUserPoints(userId);
+    const userBadgesCount = (await this.getUserBadges(userId)).length;
+    
+    if (userStats) {
+      // Points milestone achievements
+      if ((userStats.totalPoints ?? 0) >= 100) {
+        await this.updateAchievementProgress(userId, 1, 100); // First 100 points
+      }
+      if ((userStats.totalPoints ?? 0) >= 500) {
+        await this.updateAchievementProgress(userId, 2, 100); // 500 points milestone
+      }
+      
+      // Level achievements
+      if ((userStats.level ?? 1) >= 5) {
+        await this.updateAchievementProgress(userId, 3, 100); // Reach level 5
+      }
+    }
+  }
+
+  // Streak operations
+  async getUserStreaks(userId: string): Promise<Streak[]> {
+    return await db
+      .select()
+      .from(streaks)
+      .where(eq(streaks.userId, userId));
+  }
+
+  async updateStreak(userId: string, streakType: string): Promise<void> {
+    const existing = await db
+      .select()
+      .from(streaks)
+      .where(and(eq(streaks.userId, userId), eq(streaks.streakType, streakType)));
+
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+
+    if (existing.length > 0) {
+      const streak = existing[0];
+      const lastActivity = streak.lastActivityDate;
+      
+      if (lastActivity) {
+        const daysDiff = Math.floor((today.getTime() - lastActivity.getTime()) / (1000 * 60 * 60 * 24));
+        
+        if (daysDiff === 1) {
+          // Consecutive day - extend streak
+          const newStreak = (streak.currentStreak ?? 0) + 1;
+          await db
+            .update(streaks)
+            .set({
+              currentStreak: newStreak,
+              longestStreak: Math.max(streak.longestStreak ?? 0, newStreak),
+              lastActivityDate: today,
+              updatedAt: new Date(),
+            })
+            .where(eq(streaks.id, streak.id));
+        } else if (daysDiff > 1) {
+          // Streak broken - reset
+          await db
+            .update(streaks)
+            .set({
+              currentStreak: 1,
+              lastActivityDate: today,
+              updatedAt: new Date(),
+            })
+            .where(eq(streaks.id, streak.id));
+        }
+        // If daysDiff === 0, same day - no update needed
+      }
+    } else {
+      // Create new streak
+      await db.insert(streaks).values({
+        userId,
+        streakType,
+        currentStreak: 1,
+        longestStreak: 1,
+        lastActivityDate: today,
+      });
+    }
+  }
+
+  // Leaderboard operations
+  async getLeaderboard(type: string, period: string, limit: number = 10): Promise<any[]> {
+    return await db
+      .select({
+        rank: leaderboards.rank,
+        score: leaderboards.score,
+        user: users,
+        metadata: leaderboards.metadata,
+      })
+      .from(leaderboards)
+      .leftJoin(users, eq(leaderboards.userId, users.id))
+      .where(and(eq(leaderboards.type, type), eq(leaderboards.period, period)))
+      .orderBy(leaderboards.rank)
+      .limit(limit);
+  }
+
+  async updateLeaderboards(): Promise<void> {
+    // Update weekly points leaderboard
+    const weeklyLeaders = await db
+      .select({
+        userId: userPoints.userId,
+        weeklyPoints: userPoints.weeklyPoints,
+      })
+      .from(userPoints)
+      .orderBy(desc(userPoints.weeklyPoints))
+      .limit(100);
+
+    // Clear existing weekly leaderboard
+    await db.delete(leaderboards).where(and(
+      eq(leaderboards.type, 'weekly_points'),
+      eq(leaderboards.period, 'current_week')
+    ));
+
+    // Insert new rankings
+    for (let i = 0; i < weeklyLeaders.length; i++) {
+      await db.insert(leaderboards).values({
+        type: 'weekly_points',
+        period: 'current_week',
+        userId: weeklyLeaders[i].userId,
+        rank: i + 1,
+        score: weeklyLeaders[i].weeklyPoints ?? 0,
+      });
+    }
+
+    // Update monthly leaderboard
+    const monthlyLeaders = await db
+      .select({
+        userId: userPoints.userId,
+        monthlyPoints: userPoints.monthlyPoints,
+      })
+      .from(userPoints)
+      .orderBy(desc(userPoints.monthlyPoints))
+      .limit(100);
+
+    await db.delete(leaderboards).where(and(
+      eq(leaderboards.type, 'monthly_points'),
+      eq(leaderboards.period, 'current_month')
+    ));
+
+    for (let i = 0; i < monthlyLeaders.length; i++) {
+      await db.insert(leaderboards).values({
+        type: 'monthly_points',
+        period: 'current_month',
+        userId: monthlyLeaders[i].userId,
+        rank: i + 1,
+        score: monthlyLeaders[i].monthlyPoints ?? 0,
+      });
+    }
   }
 }
 

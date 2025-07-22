@@ -380,3 +380,153 @@ export type InsertLiveSession = z.infer<typeof insertLiveSessionSchema>;
 export type InsertDiscussion = z.infer<typeof insertDiscussionSchema>;
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 export type InsertResource = z.infer<typeof insertResourceSchema>;
+
+// Gamification tables
+export const userPoints = pgTable("user_points", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  totalPoints: integer("total_points").default(0),
+  weeklyPoints: integer("weekly_points").default(0),
+  monthlyPoints: integer("monthly_points").default(0),
+  level: integer("level").default(1),
+  currentLevelPoints: integer("current_level_points").default(0),
+  pointsToNextLevel: integer("points_to_next_level").default(100),
+  weekStartDate: timestamp("week_start_date").defaultNow(),
+  monthStartDate: timestamp("month_start_date").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const pointsHistory = pgTable("points_history", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  points: integer("points").notNull(),
+  action: varchar("action").notNull(), // post_created, comment_added, post_liked, etc.
+  description: text("description"),
+  sourceType: varchar("source_type"), // community, course, assignment
+  sourceId: integer("source_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const badges = pgTable("badges", {
+  id: serial("id").primaryKey(),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  icon: varchar("icon"), // icon name or URL
+  color: varchar("color").default("#3B82F6"), // hex color
+  rarity: varchar("rarity").default("common"), // common, rare, epic, legendary
+  criteria: jsonb("criteria"), // conditions to earn this badge
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const userBadges = pgTable("user_badges", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  badgeId: integer("badge_id").notNull(),
+  earnedAt: timestamp("earned_at").defaultNow(),
+  isVisible: boolean("is_visible").default(true),
+});
+
+export const achievements = pgTable("achievements", {
+  id: serial("id").primaryKey(),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  icon: varchar("icon"),
+  category: varchar("category"), // social, learning, consistency, milestone
+  pointsReward: integer("points_reward").default(0),
+  badgeReward: integer("badge_reward"), // optional badge ID
+  criteria: jsonb("criteria"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const userAchievements = pgTable("user_achievements", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  achievementId: integer("achievement_id").notNull(),
+  progress: decimal("progress", { precision: 5, scale: 2 }).default("0"), // percentage
+  isCompleted: boolean("is_completed").default(false),
+  completedAt: timestamp("completed_at"),
+  lastUpdated: timestamp("last_updated").defaultNow(),
+});
+
+export const streaks = pgTable("streaks", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  streakType: varchar("streak_type").notNull(), // daily_login, weekly_post, study_streak
+  currentStreak: integer("current_streak").default(0),
+  longestStreak: integer("longest_streak").default(0),
+  lastActivityDate: timestamp("last_activity_date"),
+  isActive: boolean("is_active").default(true),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const leaderboards = pgTable("leaderboards", {
+  id: serial("id").primaryKey(),
+  type: varchar("type").notNull(), // weekly_points, monthly_points, community_contributions
+  period: varchar("period").notNull(), // current_week, current_month, all_time
+  userId: varchar("user_id").notNull(),
+  rank: integer("rank").notNull(),
+  score: integer("score").notNull(),
+  metadata: jsonb("metadata"), // additional data like community name, etc.
+  calculatedAt: timestamp("calculated_at").defaultNow(),
+});
+
+// Gamification types
+export type UserPoints = typeof userPoints.$inferSelect;
+export type InsertUserPoints = typeof userPoints.$inferInsert;
+export type PointsHistory = typeof pointsHistory.$inferSelect;
+export type InsertPointsHistory = typeof pointsHistory.$inferInsert;
+export type Badge = typeof badges.$inferSelect;
+export type InsertBadge = typeof badges.$inferInsert;
+export type UserBadge = typeof userBadges.$inferSelect;
+export type InsertUserBadge = typeof userBadges.$inferInsert;
+export type Achievement = typeof achievements.$inferSelect;
+export type InsertAchievement = typeof achievements.$inferInsert;
+export type UserAchievement = typeof userAchievements.$inferSelect;
+export type InsertUserAchievement = typeof userAchievements.$inferInsert;
+export type Streak = typeof streaks.$inferSelect;
+export type InsertStreak = typeof streaks.$inferInsert;
+export type Leaderboard = typeof leaderboards.$inferSelect;
+export type InsertLeaderboard = typeof leaderboards.$inferInsert;
+
+// Gamification insert schemas
+export const insertUserPointsSchema = createInsertSchema(userPoints).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export const insertPointsHistorySchema = createInsertSchema(pointsHistory).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertBadgeSchema = createInsertSchema(badges).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertUserBadgeSchema = createInsertSchema(userBadges).omit({
+  id: true,
+  earnedAt: true,
+});
+
+export const insertAchievementSchema = createInsertSchema(achievements).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertUserAchievementSchema = createInsertSchema(userAchievements).omit({
+  id: true,
+  lastUpdated: true,
+});
+
+export const insertStreakSchema = createInsertSchema(streaks).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export const insertLeaderboardSchema = createInsertSchema(leaderboards).omit({
+  id: true,
+  calculatedAt: true,
+});

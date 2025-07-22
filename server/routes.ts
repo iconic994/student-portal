@@ -433,6 +433,185 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Gamification routes
+  app.get('/api/user/points', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const points = await storage.getUserPoints(userId);
+      res.json(points || {
+        userId,
+        totalPoints: 0,
+        weeklyPoints: 0,
+        monthlyPoints: 0,
+        level: 1,
+        currentLevelPoints: 0,
+        pointsToNextLevel: 100,
+      });
+    } catch (error) {
+      console.error("Error fetching user points:", error);
+      res.status(500).json({ message: "Failed to fetch user points" });
+    }
+  });
+
+  app.get('/api/user/points/history', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { limit } = req.query;
+      const history = await storage.getUserPointsHistory(userId, limit ? parseInt(limit as string) : 20);
+      res.json(history);
+    } catch (error) {
+      console.error("Error fetching points history:", error);
+      res.status(500).json({ message: "Failed to fetch points history" });
+    }
+  });
+
+  app.get('/api/badges', async (req, res) => {
+    try {
+      const badges = await storage.getBadges();
+      res.json(badges);
+    } catch (error) {
+      console.error("Error fetching badges:", error);
+      res.status(500).json({ message: "Failed to fetch badges" });
+    }
+  });
+
+  app.get('/api/user/badges', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const badges = await storage.getUserBadges(userId);
+      res.json(badges);
+    } catch (error) {
+      console.error("Error fetching user badges:", error);
+      res.status(500).json({ message: "Failed to fetch user badges" });
+    }
+  });
+
+  app.get('/api/achievements', async (req, res) => {
+    try {
+      const achievements = await storage.getAchievements();
+      res.json(achievements);
+    } catch (error) {
+      console.error("Error fetching achievements:", error);
+      res.status(500).json({ message: "Failed to fetch achievements" });
+    }
+  });
+
+  app.get('/api/user/achievements', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const achievements = await storage.getUserAchievements(userId);
+      res.json(achievements);
+    } catch (error) {
+      console.error("Error fetching user achievements:", error);
+      res.status(500).json({ message: "Failed to fetch user achievements" });
+    }
+  });
+
+  app.get('/api/user/streaks', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const streaks = await storage.getUserStreaks(userId);
+      res.json(streaks);
+    } catch (error) {
+      console.error("Error fetching user streaks:", error);
+      res.status(500).json({ message: "Failed to fetch user streaks" });
+    }
+  });
+
+  app.get('/api/leaderboard/:type/:period', async (req, res) => {
+    try {
+      const { type, period } = req.params;
+      const { limit } = req.query;
+      const leaderboard = await storage.getLeaderboard(type, period, limit ? parseInt(limit as string) : 10);
+      res.json(leaderboard);
+    } catch (error) {
+      console.error("Error fetching leaderboard:", error);
+      res.status(500).json({ message: "Failed to fetch leaderboard" });
+    }
+  });
+
+  // Gamification actions
+  app.post('/api/award-points', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { points, action, description, sourceType, sourceId } = req.body;
+      
+      await storage.awardPoints(userId, points, action, description, sourceType, sourceId);
+      await storage.checkAndCompleteAchievements(userId);
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error awarding points:", error);
+      res.status(500).json({ message: "Failed to award points" });
+    }
+  });
+
+  // Enhanced community routes with gamification
+  app.post('/api/communities/:id/posts', isAuthenticated, async (req: any, res) => {
+    try {
+      const communityId = parseInt(req.params.id);
+      const userId = req.user.claims.sub;
+      
+      // Check if user is member
+      const isMember = await storage.isCommunityMember(userId, communityId);
+      if (!isMember) {
+        return res.status(403).json({ message: "Must be a community member to post" });
+      }
+      
+      const postData = { ...req.body, communityId, authorId: userId };
+      const post = await storage.createPost(postData);
+      
+      // Award points for creating a post
+      await storage.awardPoints(userId, 10, 'post_created', 'Created a community post', 'community', communityId);
+      await storage.updateStreak(userId, 'community_activity');
+      await storage.checkAndCompleteAchievements(userId);
+      
+      res.status(201).json(post);
+    } catch (error) {
+      console.error("Error creating post:", error);
+      res.status(500).json({ message: "Failed to create post" });
+    }
+  });
+
+  app.post('/api/posts/:id/comments', isAuthenticated, async (req: any, res) => {
+    try {
+      const postId = parseInt(req.params.id);
+      const userId = req.user.claims.sub;
+      
+      const commentData = { ...req.body, postId, authorId: userId };
+      const comment = await storage.createComment(commentData);
+      
+      // Award points for commenting
+      await storage.awardPoints(userId, 5, 'comment_added', 'Added a comment', 'post', postId);
+      await storage.updateStreak(userId, 'community_activity');
+      
+      res.status(201).json(comment);
+    } catch (error) {
+      console.error("Error creating comment:", error);
+      res.status(500).json({ message: "Failed to create comment" });
+    }
+  });
+
+  app.post('/api/:targetType/:id/react', isAuthenticated, async (req: any, res) => {
+    try {
+      const targetType = req.params.targetType;
+      const targetId = parseInt(req.params.id);
+      const userId = req.user.claims.sub;
+      const { reactionType = 'like' } = req.body;
+      
+      const cleanTargetType = targetType === 'posts' ? 'post' : 'comment';
+      await storage.toggleReaction(userId, cleanTargetType, targetId, reactionType);
+      
+      // Award points for reacting (but prevent spam by checking if reaction was added, not removed)
+      await storage.awardPoints(userId, 2, 'reaction_added', 'Reacted to content', cleanTargetType, targetId);
+      
+      res.json({ message: "Reaction toggled successfully" });
+    } catch (error) {
+      console.error("Error toggling reaction:", error);
+      res.status(500).json({ message: "Failed to toggle reaction" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   // WebSocket server for real-time features

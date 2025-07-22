@@ -12,7 +12,8 @@ import {
   Award,
   Video,
   Clock,
-  Users
+  Users,
+  Gamepad2
 } from "lucide-react";
 
 export default function Sidebar() {
@@ -53,6 +54,7 @@ export default function Sidebar() {
     { href: "/community", icon: Users, label: "Community", isActive: location.startsWith("/community") },
     { href: "/assignments", icon: FileText, label: "Assignments", isActive: location === "/assignments" },
     { href: "/certificates", icon: Award, label: "Certificates", isActive: location === "/certificates" },
+    { href: "/gamification", icon: Gamepad2, label: "Rewards", isActive: location === "/gamification" },
   ];
 
   return (

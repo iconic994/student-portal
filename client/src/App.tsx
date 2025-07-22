@@ -15,6 +15,7 @@ import Community from "@/pages/community";
 import CommunityDetail from "@/pages/community-detail";
 import Assignments from "@/pages/assignments";
 import Certificates from "@/pages/certificates";
+import Gamification from "@/pages/gamification";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -35,6 +36,7 @@ function Router() {
           <Route path="/community/:id" component={CommunityDetail} />
           <Route path="/assignments" component={Assignments} />
           <Route path="/certificates" component={Certificates} />
+          <Route path="/gamification" component={Gamification} />
         </>
       )}
       <Route component={NotFound} />
