@@ -92,7 +92,14 @@ export default function Community() {
           userCommunitiesRes.json()
         ]);
         
-        setCommunities(communitiesData);
+        // Transform the API response to match the component's expected structure
+        const transformedCommunities = communitiesData.map((item: any) => ({
+          ...item.community,
+          memberCount: item.memberCount || item.community.memberCount,
+          postCount: item.postCount || item.community.postCount
+        }));
+        
+        setCommunities(transformedCommunities);
         setUserCommunities(userCommunitiesData);
       } catch (error) {
         console.error('Error loading data:', error);
