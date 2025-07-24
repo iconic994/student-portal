@@ -180,23 +180,34 @@ export default function CourseCard({ course, progress, enrolled = false }: Cours
           </div>
         )}
 
-        {/* Action Button */}
-        <div className="flex items-center justify-between">
-          {enrolled ? (
-            <Link href={`/courses/${course.id}/modules/1`} className="flex-1">
-              <Button className="w-full bg-blue-500 hover:bg-blue-600 text-white">
-                {progress === 100 ? 'Review Course' : 'Continue Learning'}
-              </Button>
-            </Link>
-          ) : (
+        {/* Action Buttons */}
+        <div className="space-y-2">
+          <div className="flex space-x-2">
             <Button
-              onClick={() => enrollMutation.mutate(course.id)}
-              disabled={enrollMutation.isPending}
-              className="w-full bg-emerald-500 hover:bg-emerald-600 text-white"
+              variant="outline"
+              size="sm"
+              className="flex-1"
+              onClick={() => window.location.href = `/courses/${course.id}/preview`}
             >
-              {enrollMutation.isPending ? 'Enrolling...' : 'Enroll Now'}
+              Preview
             </Button>
-          )}
+            {enrolled ? (
+              <Link href={`/courses/${course.id}/modules/1`} className="flex-1">
+                <Button size="sm" className="w-full bg-blue-500 hover:bg-blue-600 text-white">
+                  Continue
+                </Button>
+              </Link>
+            ) : (
+              <Button
+                size="sm"
+                className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white"
+                onClick={() => enrollMutation.mutate(course.id)}
+                disabled={enrollMutation.isPending}
+              >
+                {enrollMutation.isPending ? 'Enrolling...' : 'Enroll'}
+              </Button>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>

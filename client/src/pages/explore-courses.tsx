@@ -289,21 +289,26 @@ export default function ExploreCourses() {
                     <Separator />
 
                     <div className="flex space-x-2">
+                      <Button 
+                        className="flex-1" 
+                        variant="outline"
+                        onClick={() => window.location.href = `/courses/${course.id}/preview`}
+                      >
+                        Preview Course
+                      </Button>
                       {course.isEnrolled ? (
-                        <Button className="flex-1" variant="outline">
-                          Continue Learning
+                        <Button 
+                          onClick={() => window.location.href = `/courses/${course.id}`}
+                        >
+                          Continue
                         </Button>
                       ) : (
                         <Button 
-                          className="flex-1"
                           onClick={() => handleEnrollCourse(course.id, course.title)}
                         >
-                          Enroll Now
+                          Enroll
                         </Button>
                       )}
-                      <Button variant="outline" size="icon">
-                        <BookOpen className="w-4 h-4" />
-                      </Button>
                     </div>
                   </CardContent>
                 </Card>
