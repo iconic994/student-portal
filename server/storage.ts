@@ -75,7 +75,7 @@ import {
   userOnboarding,
   onboardingRecommendations,
   onboardingSteps,
-  activityStreaks,
+
   type UserOnboarding,
   type OnboardingRecommendation,
 } from "@shared/schema";
@@ -1002,13 +1002,24 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createUserOnboarding(data: any): Promise<UserOnboarding> {
-    const result = await db.insert(userOnboarding).values(data).returning();
+    const cleanData = {
+      ...data,
+      completedAt: data.completedAt ? new Date(data.completedAt) : null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const result = await db.insert(userOnboarding).values(cleanData).returning();
     return result[0];
   }
 
   async updateUserOnboarding(userId: string, data: any): Promise<UserOnboarding> {
+    const cleanData = {
+      ...data,
+      completedAt: data.isCompleted && !data.completedAt ? new Date() : data.completedAt ? new Date(data.completedAt) : null,
+      updatedAt: new Date(),
+    };
     const result = await db.update(userOnboarding)
-      .set({...data, updatedAt: new Date()})
+      .set(cleanData)
       .where(eq(userOnboarding.userId, userId))
       .returning();
     return result[0];

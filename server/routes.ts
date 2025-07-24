@@ -774,6 +774,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
             break;
             
+          case 'webrtc_offer':
+            // Forward WebRTC offer to specific peer
+            if (currentSession && data.targetUserId) {
+              forwardToUser(currentSession, data.targetUserId, {
+                type: 'webrtc_offer',
+                fromUserId: userId,
+                offer: data.offer
+              });
+            }
+            break;
+            
+          case 'webrtc_answer':
+            // Forward WebRTC answer to specific peer
+            if (currentSession && data.targetUserId) {
+              forwardToUser(currentSession, data.targetUserId, {
+                type: 'webrtc_answer',
+                fromUserId: userId,
+                answer: data.answer
+              });
+            }
+            break;
+            
+          case 'webrtc_ice_candidate':
+            // Forward ICE candidate to specific peer
+            if (currentSession && data.targetUserId) {
+              forwardToUser(currentSession, data.targetUserId, {
+                type: 'webrtc_ice_candidate',
+                fromUserId: userId,
+                candidate: data.candidate
+              });
+            }
+            break;
+            
+          case 'video_toggle':
+            // Broadcast video toggle status
+            if (currentSession) {
+              broadcastToSession(currentSession, {
+                type: 'participant_video_toggle',
+                userId: data.userId,
+                videoEnabled: data.videoEnabled
+              });
+            }
+            break;
+            
+          case 'audio_toggle':
+            // Broadcast audio toggle status
+            if (currentSession) {
+              broadcastToSession(currentSession, {
+                type: 'participant_audio_toggle',
+                userId: data.userId,
+                audioEnabled: data.audioEnabled
+              });
+            }
+            break;
+            
           case 'media_state_change':
             // Broadcast media state changes (mute/unmute, video on/off)
             if (currentSession) {
@@ -832,7 +887,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const participants = sessionParticipants.get(sessionId);
     if (participants) {
       participants.forEach((participant: any) => {
-        if (participant.ws !== excludeWs && participant.ws.readyState === WebSocket.OPEN) {
+        if (participant.ws !== excludeWs && participant.ws.readyState === 1) {
+          participant.ws.send(JSON.stringify(message));
+        }
+      });
+    }
+  }
+  
+  function forwardToUser(sessionId: string, targetUserId: string, message: any) {
+    if (!sessionId || !sessionParticipants.has(sessionId)) return;
+    
+    const participants = sessionParticipants.get(sessionId);
+    if (participants) {
+      participants.forEach((participant: any) => {
+        if (participant.userId === targetUserId && participant.ws.readyState === 1) {
           participant.ws.send(JSON.stringify(message));
         }
       });
