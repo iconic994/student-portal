@@ -31,14 +31,17 @@ export function getSession() {
     ttl: sessionTtl,
     tableName: "sessions",
   });
+  
+  const sessionSecret = process.env.SESSION_SECRET || "Dt/ZSP8kze8/Aw5yNsNcG8JCsYyk7/rzmLO2WDbI0wvz9HCVcbnhvxAMHGeI4zXk/QFfN8S7KYrzq9oYfcWeng==";
+  
   return session({
-    secret: process.env.SESSION_SECRET!,
+    secret: sessionSecret,
     store: sessionStore,
     resave: false,
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: true,
+      secure: false, // Set to false for development
       maxAge: sessionTtl,
     },
   });
