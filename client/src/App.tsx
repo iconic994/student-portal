@@ -17,6 +17,7 @@ import Assignments from "@/pages/assignments";
 import Certificates from "@/pages/certificates";
 import Gamification from "@/pages/gamification";
 import OnboardingWizard from "@/pages/onboarding";
+import BillingSettings from "@/pages/BillingSettings";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -38,6 +39,7 @@ function Router() {
           <Route path="/assignments" component={Assignments} />
           <Route path="/certificates" component={Certificates} />
           <Route path="/gamification" component={Gamification} />
+          <Route path="/billing" component={BillingSettings} />
           <Route path="/onboarding" component={OnboardingWizard} />
         </>
       )}

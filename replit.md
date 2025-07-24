@@ -19,6 +19,8 @@ Preferred communication style: Simple, everyday language.
 - WebSocket server configured for real-time communication with video/audio controls
 - Peer-to-peer video calling capabilities with offer/answer/ICE candidate exchange
 - Live session features: participant management, chat, hand raising, media controls
+- Created billing settings page for payment management and course subscriptions
+- Added sample data: 4 courses, 7 modules, 5 communities, 3 live sessions, 2 certificates
 - All API endpoints functional and tested
 - Application running successfully on port 5000
 
