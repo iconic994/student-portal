@@ -18,6 +18,7 @@ import Certificates from "@/pages/certificates";
 import Gamification from "@/pages/gamification";
 import OnboardingWizard from "@/pages/onboarding";
 import BillingSettings from "@/pages/BillingSettings";
+import ExploreCourses from "@/pages/explore-courses";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -31,6 +32,7 @@ function Router() {
         <>
           <Route path="/" component={Dashboard} />
           <Route path="/courses" component={Courses} />
+          <Route path="/explore-courses" component={ExploreCourses} />
           <Route path="/courses/:id/modules/:moduleId" component={CourseModule} />
           <Route path="/live-sessions" component={LiveSessions} />
           <Route path="/live-sessions/:id" component={LiveSessionRoom} />

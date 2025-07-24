@@ -105,7 +105,7 @@ export default function Certificates() {
             </div>
             <div className="flex items-center space-x-2">
               <Badge variant="secondary" className="text-sm">
-                {certificates?.length || 0} Certificates Earned
+                {(certificates && Array.isArray(certificates) ? certificates.length : 0)} Certificates Earned
               </Badge>
             </div>
           </div>
@@ -117,7 +117,7 @@ export default function Certificates() {
                 <div key={i} className="h-48 bg-gray-200 dark:bg-gray-700 rounded-xl animate-pulse" />
               ))}
             </div>
-          ) : !certificates || certificates.length === 0 ? (
+          ) : !certificates || !Array.isArray(certificates) || certificates.length === 0 ? (
             <Card>
               <CardContent className="p-12 text-center">
                 <Award className="w-16 h-16 text-gray-400 mx-auto mb-4" />
@@ -131,7 +131,7 @@ export default function Certificates() {
             </Card>
           ) : (
             <div className="space-y-8">
-              {certificates.map((certificateData: any, index: number) => {
+              {(certificates as any[]).map((certificateData: any, index: number) => {
                 const certificate = certificateData.certificate;
                 const course = certificateData.course;
                 

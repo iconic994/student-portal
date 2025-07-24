@@ -20,7 +20,9 @@ Preferred communication style: Simple, everyday language.
 - Peer-to-peer video calling capabilities with offer/answer/ICE candidate exchange
 - Live session features: participant management, chat, hand raising, media controls
 - Created billing settings page for payment management and course subscriptions
-- Added sample data: 4 courses, 7 modules, 5 communities, 3 live sessions, 2 certificates
+- Added comprehensive sample data: 6 courses, 13 modules, 5 communities, 6 live sessions, 2 certificates
+- Created "Explore Courses" page with advanced filtering and search functionality
+- Fixed certificates page data handling errors for proper display
 - All API endpoints functional and tested
 - Application running successfully on port 5000
 

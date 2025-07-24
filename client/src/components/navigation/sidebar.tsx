@@ -14,7 +14,8 @@ import {
   Clock,
   Users,
   Gamepad2,
-  CreditCard
+  CreditCard,
+  Search
 } from "lucide-react";
 
 export default function Sidebar() {
@@ -29,10 +30,10 @@ export default function Sidebar() {
     queryKey: ["/api/user/live-sessions"],
   });
 
-  const coursesInProgress = enrollments?.filter((e: any) => parseFloat(e.enrollment.progress) < 100) || [];
+  const coursesInProgress = (enrollments as any[])?.filter((e: any) => parseFloat(e.enrollment.progress) < 100) || [];
   const totalCertificates = 8; // This would come from certificates API
   
-  const upcomingSession = liveSessions?.find((s: any) => {
+  const upcomingSession = (liveSessions as any[])?.find((s: any) => {
     const sessionTime = new Date(s.session.scheduledAt);
     const now = new Date();
     const timeDiff = sessionTime.getTime() - now.getTime();
@@ -51,6 +52,7 @@ export default function Sidebar() {
   const navigationItems = [
     { href: "/", icon: Home, label: "Dashboard", isActive: location === "/" },
     { href: "/courses", icon: BookOpen, label: "My Courses", isActive: location === "/courses" },
+    { href: "/explore-courses", icon: Search, label: "Explore Courses", isActive: location === "/explore-courses" },
     { href: "/live-sessions", icon: Video, label: "Live Sessions", isActive: location.startsWith("/live-sessions") },
     { href: "/community", icon: Users, label: "Community", isActive: location.startsWith("/community") },
     { href: "/assignments", icon: FileText, label: "Assignments", isActive: location === "/assignments" },
@@ -165,16 +167,16 @@ export default function Sidebar() {
         <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-xl">
           <div className="flex items-center space-x-3">
             <img
-              src={user?.profileImageUrl || `https://ui-avatars.com/api/?name=${user?.firstName}&background=3b82f6&color=fff`}
+              src={(user as any)?.profileImageUrl || `https://ui-avatars.com/api/?name=${(user as any)?.firstName || 'Student'}&background=3b82f6&color=fff`}
               alt="Profile"
               className="w-10 h-10 rounded-full object-cover"
             />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                {user?.firstName || 'Student'} {user?.lastName || ''}
+                {(user as any)?.firstName || 'Student'} {(user as any)?.lastName || ''}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                {user?.email}
+                {(user as any)?.email}
               </p>
             </div>
           </div>
